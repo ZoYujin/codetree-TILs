@@ -1,78 +1,60 @@
-l, n, q = map(int, input().split())
-board = []
-knights  = []
-commands = []
-for i in range(l):
-    board.append(list(map(int, input().split())))
-for j in range(n):
-    knights.append(list(map(int, input().split())))
-for k in range(q):
-    commands.append(list(map(int, input().split())))
-# print(board)#[[0, 0, 1, 0], [0, 0, 1, 0], [1, 1, 0, 1], [0, 0, 2, 0]]
-# print("board[3][2]", board[3][2])
-# print(knights)#[[1, 2, 2, 1, 5], [2, 1, 2, 1, 1], [3, 2, 1, 2, 3]]
-# print(commands)#[[1, 2], [2, 1], [3, 3]]
-dc = [0, 1, 0, -1]
-dr = [-1, 0, 1, 0]
-sum_damage = [0] * n
+#방향 : 상 우 하 좌
+di = [-1, 0, 1, 0]
+dj = [0, 1, 0, -1]
 
-def move(command):
-    dir = command[1]
+N, M, Q = map(int, input().split())
+#벽으로 둘러싸서, 범위 체크 안 하고, 범위 밖으로 밀리지 않게 처리
+arr = [[2]*(N+2)]+[[2]+list(map(int, input().split())) + [2] for _ in range(N)] +[[2]*(N+2)]
+# print(arr)
+units = {}
+init_k = [0]*(M+1)
+for m in range(1, M+1):
+    si, sj, h, w, k = map(int, input().split())
+    units[m] = [si, sj, h, w, k]
+    init_k[m] = k #ㅊ초기 체력 저장(ans 처리용)
 
-    check = True
-    for knight in knights:
-        #벽/체스판 밖으로 있으면 못 감. 기사들 wXh 중 하나라도 벽때문에 못 움직이면 전부 이동X.
-        #다 체크해서 전원 체스판 안에 있으면 nr, nc로 업데이트
-        # (r,c)->(r+dr[dir], c+dc[dir]
-        if knight[4] >0:
-            # print("moving knight", knight)
-            h = knight[2]
-            w = knight[3]
-            nr = knight[0] + dr[dir] # [nr, nr+h]
-            nc = knight[1] + dc[dir] # [nc, nc+w]
-            if not(1<=nr<=l and 1<=nc<=l and 1<=nr+h<=l+1 and 1<=nc+w<=l+1):
-                check = False
-                # print("out of board")
-                break
-            for i in range(nr, nr+h):
-                for j in range(nc, nc+w):
-                    # print("board[i-1][j-1]", i-1, j-1,board[i-1][j-1])
-                    if board[i-1][j-1] == 2:
-                        check = False
-                        # print("barrier")
-                        break
-    if check == True:
-        for knight in knights:
-            knight[0] += dr[dir]
-            knight[1] += dc[dir]
-            # print("move", knight)
-    return check
+def push_unit(start, dr): #BFS : s를 밀고 연쇄 처리
+    q = [] #push 후보 저장
+    pset = set() #visited 역할-이동시킬 기사 번호 저장
+    damage = [0]*(M+1) #각 유닛별 데미지 누적
+    #초기 데이터 추가
+    q.append(start)
+    pset.add(start)
 
-def damage(command):
-    attacker = command[0]-1
-    for idx, knight in enumerate(knights):
-        if idx != attacker and knight[4] > 0:
-            h = knight[2]
-            w = knight[3]
-            r = knight[0] # [nr, nr+h]
-            c = knight[1] # [nc, nc+w]
-            for i in range(r, r+h):
-                for j in range(c, c+w):
-                    if board[i-1][j-1] == 1:
-                        knight[4] -= 1
-                        sum_damage[idx] += 1
-                    # print("after damage calcul:", knight)
+    while q:
+        cur = q.pop(0)
+        ci, cj, h, w, k = units[cur]
+        #명령 받은 방향 진행, 벽이 아니면, 겹치는 다른 조각이면=> 큐에 삽입
+        ni, nj = ci+di[dr], cj+dj[dr]
+        for i in range(ni, ni+h):
+            for j in range(nj, nj+w):
+                if arr[i][j] == 2: #벽이면 큐고 뭐고 취소
+                    return
+                if arr[i][j] == 1:
+                    damage[cur]+=1
+        #겹치는 다른 유닛 있는 경우 큐에 추가(모든 유닛 체크)
+        for idx in units:
+            if idx in pset: continue
+            ti, tj, th, tw, tk = units[idx]
+            #겹치는 경우
+            if ni<=ti+th-1 and ni+h-1>=ti and nj<=tj+tw-1 and nj+w-1>=tj:
+                q.append(idx)
+                pset.add(idx)
+    damage[start] = 0
+    #이동, 데미지가 체력 이상이면 삭제 처리
+    for idx in pset:
+        si, sj, h, w, k = units[idx]
+        if k<=damage[idx]:
+            units.pop(idx)
+        else:
+            ni, nj = si+di[dr], sj+dj[dr]
+            units[idx] = [ni, nj, h, w, k-damage[idx]]
 
-
-##Main command excution##
-for command in commands:
-    check = move(command)
-    if check:
-        damage(command)
-answer = 0
-for idx, knight in enumerate(knights):
-    if knight[4] > 0:
-        # print(knight)
-        # print(sum_damage[idx])
-        answer += sum_damage[idx]
-print(answer)
+for _ in range(Q):
+    idx, dr = map(int, input().split())
+    if idx in units:
+        push_unit(idx, dr)
+ans = 0
+for idx in units:
+    ans += init_k[idx] - units[idx][4]
+print(ans)
